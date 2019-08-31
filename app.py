@@ -5,7 +5,6 @@ import os
 # import SQLAlchemy as SQLAlchemy
 from _ast import List
 
-
 import numpy as np
 from biosppy import utils
 from biosppy.signals import ecg
@@ -23,9 +22,8 @@ import tensorflow as tf
 from flask_cors import CORS, cross_origin
 import json
 from flask import render_template, request, redirect, url_for
+from keras import backend as K
 
-import keras
-import tensorflow as tf
 
 from scipy import signal
 # Init app
@@ -42,98 +40,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + \
     os.path.join(basedir, 'db.sqlite')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-app.config["IMAGE_UPLOADS"] = "/"
-# Init db
-# db = SQLAlchemy(app)
-# # Init ma
-# ma = Marshmallow(app)
+app.config["UPLOAD_FOLDER"] = "/"
 
-# # Product Class/Model
-# class Product(db.Model):
-#     id = db.Column(db.Integer, primary_key=True)
-#     name = db.Column(db.String(100), unique=True)
-#     description = db.Column(db.String(200))
-#     price = db.Column(db.Float)
-#     qty = db.Column(db.Integer)
-
-#     def __init__(self, name, description, price, qty):
-#         self.name = name
-#         self.description = description
-#         self.price = price
-#         self.qty = qty
-
-# # Product Schema
-
-
-# class ProductSchema(ma.Schema):
-#     class Meta:
-#         fields = ('id', 'name', 'description', 'price', 'qty')
-
-
-# # Init schema
-# product_schema = ProductSchema(strict=True)
-# products_schema = ProductSchema(many=True, strict=True)
-
-# # Create a Product
-# @app.route('/product', methods=['POST'])
-# def add_product():
-#     name = request.json['name']
-#     description = request.json['description']
-#     price = request.json['price']
-#     qty = request.json['qty']
-
-#     new_product = Product(name, description, price, qty)
-
-#     db.session.add(new_product)
-#     db.session.commit()
-
-#     return product_schema.jsonify(new_product)
-
-# # Get All Products
-# @app.route('/product', methods=['GET'])
-# def get_products():
-#     all_products = Product.query.all()
-#     result = products_schema.dump(all_products)
-#     return jsonify(result.data)
-
-# # Get Single Products
-# @app.route('/product/<id>', methods=['GET'])
-# def get_product(id):
-#     product = Product.query.get(id)
-#     return product_schema.jsonify(product)
-
-# # Update a Product
-# @app.route('/product/<id>', methods=['PUT'])
-# def update_product(id):
-#     product = Product.query.get(id)
-
-#     name = request.json['name']
-#     description = request.json['description']
-#     price = request.json['price']
-#     qty = request.json['qty']
-
-#     product.name = name
-#     product.description = description
-#     product.price = price
-#     product.qty = qty
-
-#     db.session.commit()
-
-#     return product_schema.jsonify(product)
-
-# # Delete Product
-# @app.route('/product/<id>', methods=['DELETE'])
-# def delete_product(id):
-#     product = Product.query.get(id)
-#     db.session.delete(product)
-#     db.session.commit()
-
-# config = tf.ConfigProto( device_count = {'GPU': 1 , 'CPU': 1})
-# sess = tf.Session(config=config)
-# keras.backend.set_session(sess)
-
-
-#     return product_schema.jsonify(product)
 def load_model():
     ### Loading a Check-Pointed Neural Network Model
     # How to load and use weights from a checkpoint
@@ -142,6 +50,8 @@ def load_model():
     # How to load and use weights from a checkpoint
     from keras.models import Sequential
     from keras.layers import Dense
+
+
     from keras.callbacks import ModelCheckpoint
     import matplotlib.pyplot as plt
 
@@ -149,7 +59,7 @@ def load_model():
     seed = 7
     np.random.seed(seed)
     # create model
-    print('Build LSTM RNN model ...')
+    # print('Build LSTM RNN model ...')
     model = Sequential()
     model.add(LSTM(units=64, dropout=0.05, recurrent_dropout=0.35, return_sequences=True, input_shape=(256, 1)))
     model.add(LSTM(units=32, dropout=0.05, recurrent_dropout=0.35, return_sequences=False))
@@ -160,7 +70,7 @@ def load_model():
     model.load_weights(best_model_file)
     # Compile model (required to make predictions)
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-    print("Created model and loaded weights from file")
+    # print("Created model and loaded weights from file")
 
     return model
 
@@ -198,32 +108,42 @@ def load_txt(path):
 
     return data, mdata
 
-@app.route("/upload", methods=["GET", "POST"])
-def upload_image():
-    if request.method == "POST":
+@app.route("/api/upload", methods=['POST'])
+def upload_file():
+    print(request.files)
+    # check if the post request has the file part
+    if 'file' not in request.files:
+        print('no file in request')
+        return""
+    file = request.files['file']
+    if file.filename == '':
+        print('no selected file')
+        return""
 
-        if request.files:
-            image = request.files["image"]
 
-            print(image)
-
-            return redirect(request.url)
-    return 'uploaded'
-
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        return ""
+    print("end")
+    return""
 
 
 @app.route('/api/prediction/<filePath>', methods=['GET'])
 @cross_origin()
 def predict_arrhythmia(filePath):
     signal2 = load_txt('./' + filePath)
-    print('signal', signal2)
+    #print('signal', signal2)
 
+    complete_ecg = list(signal2[0])
+
+    # print("complete ecg",complete_ecg)
     channel = signal2[0].transpose()
-    print('data = record[0].transpose():', channel)
+   # print('data = record[0].transpose():', channel)
 
     # Find rpeaks in the ECG data. Most should match with the annotations.
     out = ecg.ecg(signal=channel, sampling_rate=360, show=False)
-    # print('r peaks', out[2])
+    heart_rate = out['heart_rate_ts']
+    print(heart_rate)
+    print(filePath,'r peaks', out[2])
     # create a array size similar to signal array ex:-650000 with all zero values
     rpeaks = np.zeros_like(channel, dtype='float')
     # replace '1.0' for indexes in the array comparing with the -out['rpeaks']- array
@@ -252,7 +172,7 @@ def predict_arrhythmia(filePath):
 
         # Normalize the readings to a 0-1 range for ML purposes.
         beats[idx] = (beats[idx] - beats[idx].min()) / beats[idx].ptp()
-        print(len(beats[idx]))
+      #  print(len(beats[idx]))
 
 
 
@@ -284,8 +204,8 @@ def predict_arrhythmia(filePath):
     # print(len(beats))
     beat_array = beatdata.reshape((len(beats), 256, 1))
     beat_array2 = beatdata.reshape((len(br), 256, 1))
-    print(beat_array.shape)
-    print(beat_array2.shape)
+    #print(beat_array.shape)
+    #print(beat_array2.shape)
 
 
     ### Loading a Check-Pointed Neural Network Model
@@ -313,7 +233,7 @@ def predict_arrhythmia(filePath):
     model.load_weights(best_model_file)
     # Compile model (required to make predictions)
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-    print("Created model and loaded weights from file")
+    # print("Created model and loaded weights from file")
 
     y_pred = model.predict_classes(beat_array, batch_size=32)
     # print(y_pred)
@@ -333,45 +253,47 @@ def predict_arrhythmia(filePath):
                 catval = "Right Bundle Branch Block"
                 pred_list.append(catval)
             elif (catval == 3):
-                catval = "Atrial Premature Beat"
+                catval = "Atrial Premature"
                 pred_list.append(catval)
             elif (catval == 4):
-                catval = "Aberrated Atrial Premature Beat"
+                catval = "Aberrated Atrial Premature"
                 pred_list.append(catval)
             elif (catval == 5):
-                catval = "Nodal (junctional)Premature Beat"
+                catval = "Nodal (junctional)Premature"
                 pred_list.append(catval)
             elif (catval == 6):
-                catval = "x"
+                catval = "Super Ventricular Premature"
                 pred_list.append(catval)
             elif (catval == 7):
-                catval = "PVC"
+                catval = "Normal"
                 pred_list.append(catval)
             elif (catval == 8):
-                catval = "x"
+                catval = "Fusion of Ventricular Contraction"
                 pred_list.append(catval)
             elif (catval == 9):
-                catval = "x"
+                catval = "Atrial Escape"
                 pred_list.append(catval)
             elif (catval == 10):
-                catval = "x"
+                catval = "Nodal Escape"
                 pred_list.append(catval)
             elif (catval == 11):
-                catval = "x"
+                catval = "Ventricular Escape"
                 pred_list.append(catval)
             elif (catval == 12):
-                catval = "x"
+                catval = "Paced"
                 pred_list.append(catval)
             elif (catval == 13):
-                catval = "x"
+                catval = "Fusion of Paced"
                 pred_list.append(catval)
             elif (catval == 14):
-                catval = "x"
+                catval = "Unclassified"
                 pred_list.append(catval)
 
-        beat_obj = ({"beats": list(myList),"predicted_class": str(pred_list[id]),"id":str(id )})
+        beat_obj = ({"beats": list(y),"predicted_class": str(pred_list[id]),"id":str(id ),"r_peak":str(out['rpeaks'][id-1])})
         json_list.append(beat_obj)
 
+        # sess = tf.Session(config=tf.ConfigProto(log_device_placement = True))
+        # print("Sess: ",sess)
 
 
     # y_pred = model.predict_classes(beats_mat, batch_size=32)
@@ -379,10 +301,12 @@ def predict_arrhythmia(filePath):
     json_list = list(json_list)
     complete_beat = list(channel)
     x = "arrhythmia "
-    obj = {"key": "jesus", "predictionArray":"itiy","prediction": ((json_list))}
+
+    a=  (list(out['rpeaks']))
+   # print(a,a)
+    obj = {"key": "jesus", "predictionArray":"itiy","complete_ecg":complete_ecg,"r_peaks":"xxx","prediction": ((json_list))}
     return (json.dumps(obj),200, {'content-type': 'application/json'})
-    e = time.time()
-    print(e - s)
+
 
 # Run Server
 if __name__ == '__main__':

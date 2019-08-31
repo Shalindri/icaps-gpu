@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/MyProjectTest.iml" filepath="$PROJECT_DIR$/.idea/MyProjectTest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/icaps-gpu.iml" filepath="$PROJECT_DIR$/.idea/icaps-gpu.iml" />
     </modules>
   </component>
 </project>
